@@ -3,8 +3,13 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node app.js",
-    "dev": "nodemon app.js"
+    "start": "node run_services.js",
+    "dev": "node run_services.js",
+    "dev-product": "nodemon product_service.js",
+    "dev-search": "nodemon search_service.js",
+    "dev-order": "nodemon order_service.js",
+    "dev-cart": "nodemon cart_service.js",
+    "dev-payment": "nodemon payment_service.js"
   },
   "keywords": [],
   "author": "",

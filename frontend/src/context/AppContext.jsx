@@ -4,7 +4,11 @@ import toast from "react-hot-toast";
 
 export const AppContext = createContext();
 
-const BACKEND_URL = "http://localhost:5000/api";
+// 5 Microservice base URLs
+const PRODUCT_SERVICE_URL = "http://localhost:5001/api";
+const SEARCH_SERVICE_URL = "http://localhost:5002/api";
+const ORDER_SERVICE_URL = "http://localhost:5003/api";
+const CART_SERVICE_URL = "http://localhost:5004/api";
 
 const LOCAL_PRODUCTS_FALLBACK = [
   {
@@ -101,28 +105,36 @@ export const AppProvider = ({ children }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [cart, setCart] = useState(() => {
-    const savedCart = localStorage.getItem("cart");
-    return savedCart ? JSON.parse(savedCart) : [];
-  });
+  const [cart, setCart] = useState([]);
 
-  // Save cart to local storage whenever it changes
+  // Fetch Cart items from Cart Service (Port 5004)
+  const fetchCart = async () => {
+    try {
+      const response = await axios.get(`${CART_SERVICE_URL}/cart`);
+      if (response.data) {
+        setCart(response.data);
+      }
+    } catch (err) {
+      console.warn("Cart Service offline, relying on client-side state.");
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem("cart", JSON.stringify(cart));
-  }, [cart]);
+    fetchCart();
+  }, []);
 
-  // Fetch products from backend
+  // Fetch products from Catalog or Search Services
   const fetchProducts = async (query = "") => {
     setLoading(true);
     try {
-      const url = query ? `${BACKEND_URL}/products?q=${encodeURIComponent(query)}` : `${BACKEND_URL}/products`;
+      const url = query 
+        ? `${SEARCH_SERVICE_URL}/search?q=${encodeURIComponent(query)}` 
+        : `${PRODUCT_SERVICE_URL}/products`;
       const response = await axios.get(url);
       
-      // If the backend has connected and seeded products
       if (response.data && response.data.length > 0) {
         setProducts(response.data);
       } else {
-        // Fallback to local products matching the query
         const filteredFallback = LOCAL_PRODUCTS_FALLBACK.filter(p => 
           p.name.toLowerCase().includes(query.toLowerCase()) || 
           p.category.toLowerCase().includes(query.toLowerCase())
@@ -130,8 +142,7 @@ export const AppProvider = ({ children }) => {
         setProducts(filteredFallback);
       }
     } catch (err) {
-      console.warn("Backend not accessible or database not ready, using offline fallback products.");
-      // Fallback locally
+      console.warn("Product or Search services offline, using offline fallbacks.");
       const filteredFallback = LOCAL_PRODUCTS_FALLBACK.filter(p => 
         p.name.toLowerCase().includes(query.toLowerCase()) || 
         p.category.toLowerCase().includes(query.toLowerCase())
@@ -146,55 +157,78 @@ export const AppProvider = ({ children }) => {
     fetchProducts(searchQuery);
   }, [searchQuery]);
 
-  // Cart operations
-  const addToCart = (product) => {
-    setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item._id === product._id);
-      if (existingItem) {
-        toast.success(`Incremented quantity of ${product.name} in cart`);
-        return prevCart.map((item) =>
-          item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
-        );
-      } else {
-        toast.success(`Added ${product.name} to cart`);
-        return [...prevCart, { ...product, quantity: 1 }];
-      }
-    });
+  // Cart operations using Cart Service (Port 5004)
+  const addToCart = async (product) => {
+    try {
+      await axios.post(`${CART_SERVICE_URL}/cart`, {
+        productId: product._id,
+        name: product.name,
+        price: product.price,
+        image: product.image
+      });
+      toast.success(`Added ${product.name} to cart`);
+      fetchCart();
+    } catch (err) {
+      console.warn("Failed to add to database cart, updating locally.");
+      setCart((prevCart) => {
+        const existingItem = prevCart.find((item) => item.productId === product._id || item._id === product._id);
+        if (existingItem) {
+          return prevCart.map((item) =>
+            (item.productId === product._id || item._id === product._id) ? { ...item, quantity: item.quantity + 1 } : item
+          );
+        } else {
+          return [...prevCart, { ...product, productId: product._id, quantity: 1 }];
+        }
+      });
+      toast.success(`Added ${product.name} to cart (Offline)`);
+    }
   };
 
-  const removeFromCart = (productId) => {
-    setCart((prevCart) => {
-      const item = prevCart.find((i) => i._id === productId);
-      if (item) {
-        toast.success(`Removed ${item.name} from cart`);
-      }
-      return prevCart.filter((item) => item._id !== productId);
-    });
+  const removeFromCart = async (productId) => {
+    const targetId = productId.productId || productId; // handles mapping differences
+    try {
+      await axios.delete(`${CART_SERVICE_URL}/cart/${targetId}`);
+      toast.success("Removed item from cart");
+      fetchCart();
+    } catch (err) {
+      setCart((prevCart) => prevCart.filter((item) => (item.productId !== targetId && item._id !== targetId)));
+      toast.success("Removed item from cart (Offline)");
+    }
   };
 
-  const updateQuantity = (productId, quantity) => {
+  const updateQuantity = async (productId, quantity) => {
+    const targetId = productId.productId || productId;
     if (quantity <= 0) {
-      removeFromCart(productId);
+      removeFromCart(targetId);
       return;
     }
-    setCart((prevCart) =>
-      prevCart.map((item) =>
-        item._id === productId ? { ...item, quantity } : item
-      )
-    );
+    try {
+      await axios.put(`${CART_SERVICE_URL}/cart/${targetId}`, { quantity });
+      fetchCart();
+    } catch (err) {
+      setCart((prevCart) =>
+        prevCart.map((item) =>
+          (item.productId === targetId || item._id === targetId) ? { ...item, quantity } : item
+        )
+      );
+    }
   };
 
-  const clearCart = () => {
-    setCart([]);
-    localStorage.removeItem("cart");
+  const clearCart = async () => {
+    try {
+      await axios.delete(`${CART_SERVICE_URL}/cart`);
+      setCart([]);
+    } catch (err) {
+      setCart([]);
+    }
   };
 
-  // Place order
+  // Place order via Order Service (Port 5003)
   const placeOrder = async (orderData) => {
     try {
       // Map cart items for backend structure
       const items = cart.map((item) => ({
-        productId: item._id.startsWith("p") ? "60d000000000000000000000" : item._id, // use default objectId if using offline mockup items
+        productId: item.productId || item._id,
         name: item.name,
         price: item.price,
         quantity: item.quantity,
@@ -208,13 +242,12 @@ export const AppProvider = ({ children }) => {
       };
 
       try {
-        const response = await axios.post(`${BACKEND_URL}/orders`, payload);
+        const response = await axios.post(`${ORDER_SERVICE_URL}/orders`, payload);
         toast.success("🎉 Payment successful! Order saved in database.");
         clearCart();
         return { success: true, order: response.data.order };
       } catch (err) {
         console.warn("Backend order submission failed, simulating success client-side.", err);
-        // Simulate order submission success so user checkout works offline
         toast.success("🎉 Payment successful! (Offline Mock Mode)");
         clearCart();
         return { success: true, order: payload };
