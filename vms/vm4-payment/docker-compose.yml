@@ -1,19 +1,20 @@
 version: '3.8'
 
 services:
-  # Container 1: Dedicated Payment Database (Mongo Docker Image)
-  payment-db:
-    image: mongo:6.0
-    container_name: vm4-payment-db
+  # Container 1: Dedicated Payment SQL Database (MySQL 8.0 Docker Image)
+  payment-sql-db:
+    image: mysql:8.0
+    container_name: vm4-payment-sql-db
     restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: secretpassword
+      MYSQL_DATABASE: payment_sqldb
     ports:
-      - "27017:27017"
+      - "3306:3306"
     volumes:
-      - payment-db-data:/data/db
-    networks:
-      - vm4-internal-net
+      - payment-sql-db-data:/var/lib/mysql
 
-  # Container 2: Payment Microservice (Private VM - 10.0.1.13)
+  # Container 2: Payment Microservice (Private VM - 10.128.0.10)
   payment-service:
     build: .
     container_name: vm4-payment-service
@@ -22,15 +23,12 @@ services:
       - "5005:5005"
     environment:
       - PORT=5005
-      - MONGO_URI=mongodb://payment-db:27017/paymentDB
+      - DB_HOST=payment-sql-db
+      - DB_USER=root
+      - DB_PASSWORD=secretpassword
+      - DB_NAME=payment_sqldb
     depends_on:
-      - payment-db
-    networks:
-      - vm4-internal-net
+      - payment-sql-db
 
 volumes:
-  payment-db-data:
-
-networks:
-  vm4-internal-net:
-    driver: bridge
+  payment-sql-db-data:

@@ -1,19 +1,20 @@
 version: '3.8'
 
 services:
-  # Container 1: Dedicated Order Database (Mongo Docker Image)
-  order-db:
-    image: mongo:6.0
-    container_name: vm3-order-db
+  # Container 1: Dedicated Order SQL Database (MySQL 8.0 Docker Image)
+  order-sql-db:
+    image: mysql:8.0
+    container_name: vm3-order-sql-db
     restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: secretpassword
+      MYSQL_DATABASE: order_sqldb
     ports:
-      - "27017:27017"
+      - "3306:3306"
     volumes:
-      - order-db-data:/data/db
-    networks:
-      - vm3-internal-net
+      - order-sql-db-data:/var/lib/mysql
 
-  # Container 2: Order Microservice (Private VM - 10.0.1.12)
+  # Container 2: Order Microservice (Private VM - 10.128.0.9)
   order-service:
     build: .
     container_name: vm3-order-service
@@ -22,18 +23,15 @@ services:
       - "5003:5003"
     environment:
       - PORT=5003
-      - MONGO_URI=mongodb://order-db:27017/orderDB
-      - PAYMENT_SERVICE_URL=http://10.0.1.13:5005/api/payments
-      - PRODUCT_SYNC_URL=http://10.0.1.10:5001/api/products/sync-stock
-      - CART_SYNC_URL=http://10.0.1.11:5004/api/cart/clear
+      - DB_HOST=order-sql-db
+      - DB_USER=root
+      - DB_PASSWORD=secretpassword
+      - DB_NAME=order_sqldb
+      - PAYMENT_SERVICE_URL=http://10.128.0.10:5005/api/payments
+      - PRODUCT_SYNC_URL=http://10.128.0.7:5001/api/products/sync-stock
+      - CART_SYNC_URL=http://10.128.0.8:5004/api/cart/clear
     depends_on:
-      - order-db
-    networks:
-      - vm3-internal-net
+      - order-sql-db
 
 volumes:
-  order-db-data:
-
-networks:
-  vm3-internal-net:
-    driver: bridge
+  order-sql-db-data:

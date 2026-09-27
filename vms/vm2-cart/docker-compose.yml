@@ -1,19 +1,20 @@
 version: '3.8'
 
 services:
-  # Container 1: Dedicated Cart Database (Redis Docker Image)
-  cart-db:
-    image: redis:7-alpine
-    container_name: vm2-cart-db
+  # Container 1: Dedicated Cart SQL Database (MySQL 8.0 Docker Image)
+  cart-sql-db:
+    image: mysql:8.0
+    container_name: vm2-cart-sql-db
     restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: secretpassword
+      MYSQL_DATABASE: cart_sqldb
     ports:
-      - "6379:6379"
+      - "3306:3306"
     volumes:
-      - cart-db-data:/data
-    networks:
-      - vm2-internal-net
+      - cart-sql-db-data:/var/lib/mysql
 
-  # Container 2: Cart Microservice (Private VM - No External IP access)
+  # Container 2: Cart Microservice (Private VM - 10.128.0.8)
   cart-service:
     build: .
     container_name: vm2-cart-service
@@ -22,16 +23,12 @@ services:
       - "5004:5004"
     environment:
       - PORT=5004
-      - REDIS_HOST=cart-db
-      - REDIS_PORT=6379
+      - DB_HOST=cart-sql-db
+      - DB_USER=root
+      - DB_PASSWORD=secretpassword
+      - DB_NAME=cart_sqldb
     depends_on:
-      - cart-db
-    networks:
-      - vm2-internal-net
+      - cart-sql-db
 
 volumes:
-  cart-db-data:
-
-networks:
-  vm2-internal-net:
-    driver: bridge
+  cart-sql-db-data:

@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # VM 1: API Gateway & Product Service + Product DB Container
+  # 🌐 VM 1: API Gateway & Product Service + 1 Mongo DB Container (NoSQL)
   vm1-product-db:
     image: mongo:6.0
     container_name: vm1-product-db
@@ -25,12 +25,15 @@ services:
     networks:
       - vms-net
 
-  # VM 2: Cart Service + Cart Redis DB Container
-  vm2-cart-db:
-    image: redis:7-alpine
-    container_name: vm2-cart-db
+  # 🛒 VM 2: Cart Service + 1st SQL DB Container (MySQL)
+  vm2-cart-sql-db:
+    image: mysql:8.0
+    container_name: vm2-cart-sql-db
+    environment:
+      MYSQL_ROOT_PASSWORD: secretpassword
+      MYSQL_DATABASE: cart_sqldb
     ports:
-      - "6379:6379"
+      - "3306:3306"
     networks:
       - vms-net
 
@@ -41,19 +44,24 @@ services:
       - "5004:5004"
     environment:
       - PORT=5004
-      - REDIS_HOST=vm2-cart-db
-      - REDIS_PORT=6379
+      - DB_HOST=vm2-cart-sql-db
+      - DB_USER=root
+      - DB_PASSWORD=secretpassword
+      - DB_NAME=cart_sqldb
     depends_on:
-      - vm2-cart-db
+      - vm2-cart-sql-db
     networks:
       - vms-net
 
-  # VM 3: Order Service + Order DB Container
-  vm3-order-db:
-    image: mongo:6.0
-    container_name: vm3-order-db
+  # 📦 VM 3: Order Service + 2nd SQL DB Container (MySQL)
+  vm3-order-sql-db:
+    image: mysql:8.0
+    container_name: vm3-order-sql-db
+    environment:
+      MYSQL_ROOT_PASSWORD: secretpassword
+      MYSQL_DATABASE: order_sqldb
     ports:
-      - "27018:27017"
+      - "3307:3306"
     networks:
       - vms-net
 
@@ -64,22 +72,28 @@ services:
       - "5003:5003"
     environment:
       - PORT=5003
-      - MONGO_URI=mongodb://vm3-order-db:27017/orderDB
+      - DB_HOST=vm3-order-sql-db
+      - DB_USER=root
+      - DB_PASSWORD=secretpassword
+      - DB_NAME=order_sqldb
       - PAYMENT_SERVICE_URL=http://vm4-payment:5005/api/payments
       - PRODUCT_SYNC_URL=http://vm1-gateway-product:5001/api/products/sync-stock
       - CART_SYNC_URL=http://vm2-cart:5004/api/cart/clear
     depends_on:
-      - vm3-order-db
+      - vm3-order-sql-db
       - vm4-payment
     networks:
       - vms-net
 
-  # VM 4: Payment Service + Payment DB Container
-  vm4-payment-db:
-    image: mongo:6.0
-    container_name: vm4-payment-db
+  # 💳 VM 4: Payment Service + 3rd SQL DB Container (MySQL)
+  vm4-payment-sql-db:
+    image: mysql:8.0
+    container_name: vm4-payment-sql-db
+    environment:
+      MYSQL_ROOT_PASSWORD: secretpassword
+      MYSQL_DATABASE: payment_sqldb
     ports:
-      - "27019:27017"
+      - "3308:3306"
     networks:
       - vms-net
 
@@ -90,9 +104,12 @@ services:
       - "5005:5005"
     environment:
       - PORT=5005
-      - MONGO_URI=mongodb://vm4-payment-db:27017/paymentDB
+      - DB_HOST=vm4-payment-sql-db
+      - DB_USER=root
+      - DB_PASSWORD=secretpassword
+      - DB_NAME=payment_sqldb
     depends_on:
-      - vm4-payment-db
+      - vm4-payment-sql-db
     networks:
       - vms-net
 
