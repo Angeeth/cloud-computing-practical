@@ -13,7 +13,7 @@ services:
     networks:
       - vm1-internal-net
 
-  # Container 2: API Gateway / Product Microservice (Exposed to External IP)
+  # Container 2: API Gateway / Product Microservice
   product-service:
     build: .
     container_name: vm1-product-service
@@ -23,10 +23,24 @@ services:
     environment:
       - PORT=5001
       - MONGO_URI=mongodb://product-db:27017/productDB
-      - CART_SERVICE_URL=http://10.0.1.11:5004
-      - ORDER_SERVICE_URL=http://10.0.1.12:5003
+      - CART_SERVICE_URL=http://10.128.0.8:5004
+      - ORDER_SERVICE_URL=http://10.128.0.9:5003
     depends_on:
       - product-db
+    networks:
+      - vm1-internal-net
+
+  # Container 3: Frontend Web UI (Exposed to External IP)
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+    container_name: vm1-frontend-service
+    restart: always
+    ports:
+      - "5173:5173"
+    depends_on:
+      - product-service
     networks:
       - vm1-internal-net
 
