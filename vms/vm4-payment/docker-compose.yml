@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # Container 1: Dedicated Payment Database (Mongo Docker Image)
+  payment-db:
+    image: mongo:6.0
+    container_name: vm4-payment-db
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - payment-db-data:/data/db
+    networks:
+      - vm4-internal-net
+
+  # Container 2: Payment Microservice (Private VM - 10.0.1.13)
+  payment-service:
+    build: .
+    container_name: vm4-payment-service
+    restart: always
+    ports:
+      - "5005:5005"
+    environment:
+      - PORT=5005
+      - MONGO_URI=mongodb://payment-db:27017/paymentDB
+    depends_on:
+      - payment-db
+    networks:
+      - vm4-internal-net
+
+volumes:
+  payment-db-data:
+
+networks:
+  vm4-internal-net:
+    driver: bridge

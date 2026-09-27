@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # Container 1: Dedicated Order Database (Mongo Docker Image)
+  order-db:
+    image: mongo:6.0
+    container_name: vm3-order-db
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - order-db-data:/data/db
+    networks:
+      - vm3-internal-net
+
+  # Container 2: Order Microservice (Private VM - 10.0.1.12)
+  order-service:
+    build: .
+    container_name: vm3-order-service
+    restart: always
+    ports:
+      - "5003:5003"
+    environment:
+      - PORT=5003
+      - MONGO_URI=mongodb://order-db:27017/orderDB
+      - PAYMENT_SERVICE_URL=http://10.0.1.13:5005/api/payments
+      - PRODUCT_SYNC_URL=http://10.0.1.10:5001/api/products/sync-stock
+      - CART_SYNC_URL=http://10.0.1.11:5004/api/cart/clear
+    depends_on:
+      - order-db
+    networks:
+      - vm3-internal-net
+
+volumes:
+  order-db-data:
+
+networks:
+  vm3-internal-net:
+    driver: bridge

@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  # Container 1: Dedicated Product Database (Mongo Docker Image)
+  product-db:
+    image: mongo:6.0
+    container_name: vm1-product-db
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - product-db-data:/data/db
+    networks:
+      - vm1-internal-net
+
+  # Container 2: API Gateway / Product Microservice (Exposed to External IP)
+  product-service:
+    build: .
+    container_name: vm1-product-service
+    restart: always
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - MONGO_URI=mongodb://product-db:27017/productDB
+      - CART_SERVICE_URL=http://10.0.1.11:5004
+      - ORDER_SERVICE_URL=http://10.0.1.12:5003
+    depends_on:
+      - product-db
+    networks:
+      - vm1-internal-net
+
+volumes:
+  product-db-data:
+
+networks:
+  vm1-internal-net:
+    driver: bridge

@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # Container 1: Dedicated Cart Database (Redis Docker Image)
+  cart-db:
+    image: redis:7-alpine
+    container_name: vm2-cart-db
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - cart-db-data:/data
+    networks:
+      - vm2-internal-net
+
+  # Container 2: Cart Microservice (Private VM - No External IP access)
+  cart-service:
+    build: .
+    container_name: vm2-cart-service
+    restart: always
+    ports:
+      - "5004:5004"
+    environment:
+      - PORT=5004
+      - REDIS_HOST=cart-db
+      - REDIS_PORT=6379
+    depends_on:
+      - cart-db
+    networks:
+      - vm2-internal-net
+
+volumes:
+  cart-db-data:
+
+networks:
+  vm2-internal-net:
+    driver: bridge
