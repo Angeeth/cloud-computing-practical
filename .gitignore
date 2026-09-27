@@ -1,8 +1,11 @@
 # Node modules
 frontend/node_modules/
 backend/node_modules/
+**/node_modules/
 
 # Environment files
+.env
+*.env
 backend/.env
 frontend/.env
 
@@ -17,13 +20,3 @@ backend/dist/
 # OS files
 .DS_Store
 Thumbs.db
-
-# VS Code settings
-.vscode/
-
-# Coverage
-coverage/
-
-# Temporary files
-*.tmp
-*.temp
